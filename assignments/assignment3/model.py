@@ -1,9 +1,7 @@
-import numpy as np
-
 from layers import (
     FullyConnectedLayer, ReLULayer,
     ConvolutionalLayer, MaxPoolingLayer, Flattener,
-    softmax_with_cross_entropy, l2_regularization
+    softmax_with_cross_entropy
     )
 
 
@@ -15,7 +13,8 @@ class ConvNet:
     Conv[3x3] -> Relu -> MaxPool[4x4] ->
     Flatten -> FC -> Softmax
     """
-    def __init__(self, input_shape, n_output_classes, conv1_channels, conv2_channels):
+    def __init__(self, input_shape, n_output_classes, conv1_channels,
+                 conv2_channels):
         """
         Initializes the neural network
 
@@ -26,8 +25,38 @@ class ConvNet:
         conv1_channels, int - number of filters in the 1st conv layer
         conv2_channels, int - number of filters in the 2nd conv layer
         """
-        # TODO Create necessary layers
-        raise Exception("Not implemented!")
+        in_width, in_height, in_channels = input_shape
+        flattener_width = in_width // (4 * 4)
+        flattener_height = in_height // (4 * 4)
+        self.layers = [
+            ConvolutionalLayer(in_channels, conv1_channels, 3, 1),
+            ReLULayer(),
+            MaxPoolingLayer(4, 4),
+            ConvolutionalLayer(conv1_channels, conv2_channels, 3, 1),
+            ReLULayer(),
+            MaxPoolingLayer(4, 4),
+            Flattener(),
+            FullyConnectedLayer(
+                flattener_width * flattener_height * conv2_channels,
+                n_output_classes
+            ),
+        ]
+
+    def zero_grads(self):
+        for param in self.params().values():
+            param.grad[:] = 0.0
+
+    def forward(self, X):
+        out = X
+        for layer in self.layers:
+            out = layer.forward(out)
+        return out
+
+    def backward(self, d_preds):
+        d_input = d_preds
+        for layer in reversed(self.layers):
+            d_input = layer.backward(d_input)
+        return d_input
 
     def compute_loss_and_gradients(self, X, y):
         """
@@ -38,23 +67,20 @@ class ConvNet:
         X, np array (batch_size, height, width, input_features) - input data
         y, np array of int (batch_size) - classes
         """
-        # Before running forward and backward pass through the model,
-        # clear parameter gradients aggregated from the previous pass
-
-        # TODO Compute loss and fill param gradients
-        # Don't worry about implementing L2 regularization, we will not
-        # need it in this assignment
-        raise Exception("Not implemented!")
+        self.zero_grads()
+        preds = self.forward(X)
+        loss, d_preds = softmax_with_cross_entropy(preds, y)
+        self.backward(d_preds)
+        return loss
 
     def predict(self, X):
-        # You can probably copy the code from previous assignment
-        raise Exception("Not implemented!")
+        preds = self.forward(X)
+        return preds.argmax(axis=1)
 
     def params(self):
         result = {}
-
-        # TODO: Aggregate all the params from all the layers
-        # which have parameters
-        raise Exception("Not implemented!")
+        for index, layer in enumerate(self.layers):
+            for name, param in layer.params().items():
+                result[f'{index}_{name}'] = param
 
         return result
